@@ -40,7 +40,24 @@ It's a small native menu bar app with no dependencies. It also turns Caps Lock i
 
 ## Installation
 
-Requires macOS 11 Big Sur or later and the Xcode Command Line Tools (`xcode-select --install`).
+### Option 1: Download a release
+
+Requires macOS 11 Big Sur or later.
+
+1. Download the latest `Snapback-<version>.zip` from [Releases](https://github.com/harisjlatif/snapback/releases/latest) and unzip it.
+2. Run the install script in Terminal:
+
+   ```sh
+   cd ~/Downloads/Snapback-*/
+   ./install.sh
+   ```
+
+> [!NOTE]
+> Release builds are ad-hoc signed, not notarized by Apple. The install script clears the download quarantine flag so macOS will run the app.
+
+### Option 2: Build from source
+
+Requires macOS 11 or later and the Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 git clone https://github.com/harisjlatif/snapback.git
@@ -48,7 +65,7 @@ cd snapback
 make install
 ```
 
-This builds `Snapback.app`, copies it to `~/Applications` and registers a LaunchAgent so it starts at login.
+Either way, `Snapback.app` is copied to `~/Applications` and a LaunchAgent starts it at login.
 
 ### Grant Accessibility access
 
@@ -110,11 +127,21 @@ make log
 
 ## Uninstalling
 
+From a clone of the repo:
+
 ```sh
 make uninstall
 ```
 
-This stops Snapback, gives Caps Lock back, and removes the app and LaunchAgent. You can then remove Snapback from the Accessibility list.
+Or, if you installed from a release:
+
+```sh
+launchctl bootout gui/$(id -u)/com.snapback.Snapback
+rm -f ~/Library/LaunchAgents/com.snapback.Snapback.plist
+rm -rf ~/Applications/Snapback.app
+```
+
+Either way, this stops Snapback, gives Caps Lock back, and removes the app and LaunchAgent. You can then remove Snapback from the Accessibility list.
 
 ## Development
 
@@ -130,7 +157,9 @@ Resources/
   Info.plist          App bundle metadata
   make-icon.swift     Draws the app icon with CoreGraphics
 scripts/
-  install.sh          Installs the app and LaunchAgent
+  install.sh          Installs the app and LaunchAgent (used by make install and release zips)
+.github/workflows/
+  release.yml         Tests, builds and publishes a release on every push to main
 ```
 
 | Command | Description |
@@ -145,3 +174,9 @@ scripts/
 | `make clean` | Delete build output |
 
 The app is ad-hoc signed with a designated requirement based on its bundle identifier, so rebuilding keeps the Accessibility permission.
+
+### Releases
+
+Every push to `main` triggers the [Release workflow](.github/workflows/release.yml). It runs the tests, builds the app and publishes a GitHub release with auto-generated notes. Pushes that only change Markdown or `docs/` are skipped.
+
+Versions are `1.0.<run number>` and count up automatically. To bump the major or minor version, change `MAJOR_MINOR` in the workflow. You can also start a release by hand from the **Actions** tab.
