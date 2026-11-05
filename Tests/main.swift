@@ -106,6 +106,53 @@ check("key already held before caps keeps its plain key-up",
       run(HyperKey(), [(A, true, 0), (F18, true, 0.1), (A, false, 0.2), (F18, false, 0.3)]),
       [.pass, .swallow, .pass, .escape])
 
+do {
+    let h = HyperKey()
+    _ = h.handle(keyCode: F18, isDown: true, time: 0)
+    h.suppressTap()
+    check("suppressed tap does not type escape", h.handle(keyCode: F18, isDown: false, time: 0.2), .swallow)
+}
+
+// MARK: Window picker
+
+let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
+let second = CGRect(x: 1000, y: 0, width: 1000, height: 800)
+
+do {
+    let left = CGRect(x: 0, y: 0, width: 500, height: 800)
+    let right = CGRect(x: 500, y: 0, width: 500, height: 800)
+    // front-to-back: right is in front
+    let c = Picker.choices(frontToBack: [right, left], displays: [screen])
+    check("numbered left to right, not by z-order", c.map(\.window), [1, 0])
+    check("labels start at 1", c.map(\.label), ["1", "2"])
+}
+do {
+    let big = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let hidden = CGRect(x: 100, y: 100, width: 300, height: 300)
+    check("fully covered windows are skipped",
+          Picker.choices(frontToBack: [big, hidden], displays: [screen]).map(\.window), [0])
+}
+do {
+    let front = CGRect(x: 0, y: 0, width: 600, height: 800)
+    let back = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let c = Picker.choices(frontToBack: [front, back], displays: [screen])
+    check("partly covered window is kept", c.count, 2)
+    check("badge sits on the visible part", c.first { $0.window == 1 }!.badgeCenter.x > 600, true)
+}
+do {
+    let onSecond = CGRect(x: 1100, y: 0, width: 400, height: 400)
+    let onFirst = CGRect(x: 600, y: 0, width: 300, height: 300)
+    check("first display's windows come first",
+          Picker.choices(frontToBack: [onSecond, onFirst], displays: [second, screen]).map(\.window), [1, 0])
+}
+do {
+    let many = (0..<12).map { CGRect(x: CGFloat($0) * 80, y: 0, width: 70, height: 70) }
+    let c = Picker.choices(frontToBack: many, displays: [screen])
+    check("at most 10 windows, labelled 1-9 then 0", c.map(\.label), Picker.labels)
+}
+check("number key codes map to labels",
+      [18, 29, 25, 0].map { Picker.labelIndex(forKeyCode: $0) }, [0, 9, 8, nil])
+
 if failures > 0 {
     print("\n\(failures) test(s) failed")
     exit(1)

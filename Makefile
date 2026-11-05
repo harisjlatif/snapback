@@ -39,7 +39,7 @@ $(APP): Sources/*.swift Resources/Info.plist $(ICNS)
 
 test:
 	mkdir -p $(BUILD)
-	$(SWIFTC) Sources/Layout.swift Sources/HyperKey.swift Tests/main.swift -o $(BUILD)/tests
+	$(SWIFTC) Sources/Layout.swift Sources/HyperKey.swift Sources/Picker.swift Tests/main.swift -o $(BUILD)/tests
 	$(BUILD)/tests
 
 # Release zip: Snapback-<version>/{Snapback.app, install.sh}

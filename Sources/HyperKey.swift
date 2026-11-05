@@ -36,6 +36,12 @@ public final class HyperKey {
     /// Keys whose key-down got Hyper, so their key-up gets it too.
     private var hyperKeysDown = Set<UInt16>()
 
+    /// Whether another key has been pressed (or `suppressTap` called) since Caps Lock went down.
+    public var wasUsed: Bool { usedAsModifier }
+
+    /// Stops the current hold from counting as a tap (no Escape on release).
+    public func suppressTap() { usedAsModifier = true }
+
     public init(tapForEscape: Bool = true, tapTimeout: TimeInterval = 0.5) {
         self.tapForEscape = tapForEscape
         self.tapTimeout = tapTimeout

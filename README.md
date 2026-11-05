@@ -17,7 +17,7 @@
 
 Arrange your windows the way you like them, press <kbd>Caps Lock</kbd> <kbd>S</kbd> to save, and press <kbd>Caps Lock</kbd> <kbd>R</kbd> whenever things get messy. Snapback remembers a separate layout for each monitor setup, so "laptop only" and "docked with two displays" each keep their own.
 
-It's a small native menu bar app with no dependencies. It also turns Caps Lock into a **Hyper key**: hold it with any key for <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd>, or tap it on its own for <kbd>Esc</kbd>.
+It's a small native menu bar app with no dependencies. It also turns Caps Lock into a **Hyper key**: hold it with any key for <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd>, tap it on its own for <kbd>Esc</kbd>, or hold it on its own to **pick a window by number**.
 
 ## Contents
 
@@ -36,6 +36,7 @@ It's a small native menu bar app with no dependencies. It also turns Caps Lock i
 - **A layout per display setup:** the layout that matches the monitors you have plugged in is the one that gets restored.
 - **Per app, not per window:** each window goes to the nearest saved spot for its app, so it works even after an app restarts.
 - **Hyper key:** Caps Lock becomes <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd> when held, a modifier no app uses, so you can bind conflict-free shortcuts. A quick tap is <kbd>Esc</kbd>.
+- **Window picker:** hold Caps Lock and every visible window gets a big number. Press it to jump straight to that window, on any display.
 - **Lightweight:** a menu bar icon, no Dock icon, starts at login.
 
 ## Installation
@@ -84,6 +85,8 @@ Snapback notices straight away and confirms when it's ready, with no restart nee
 | <kbd>Caps Lock</kbd> <kbd>R</kbd> or <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>R</kbd> | Restore it |
 | Hold <kbd>Caps Lock</kbd> + any key | That key with <kbd>⌃</kbd><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd> (Hyper) |
 | Tap <kbd>Caps Lock</kbd> | <kbd>Esc</kbd> |
+| Hold <kbd>Caps Lock</kbd> on its own | Show the window picker |
+| Hold <kbd>Caps Lock</kbd> + <kbd>1</kbd>…<kbd>0</kbd> | Focus that window |
 
 You'll hear a short sound and see a ✓ in the menu bar after each save or restore.
 
@@ -93,6 +96,16 @@ The menu bar icon also has:
 - The number of apps saved for the current display setup, and when
 - **Caps Lock as Hyper Key**: turn it off to get normal Caps Lock back
 - **Tap Caps Lock for Escape**
+- **Hold Caps Lock to Pick a Window**
+
+### Window picker
+
+Hold <kbd>Caps Lock</kbd> for a moment (0.2 s) without pressing anything else. Your displays dim and each visible window shows a large number with its app name. Keep holding <kbd>Caps Lock</kbd> and press a number to bring that window to the front. Release <kbd>Caps Lock</kbd> to dismiss without switching.
+
+- Windows are numbered by position (left display first, then left to right), so the numbers stay put as you switch between windows.
+- Windows that are almost entirely hidden behind others are skipped, and each number sits on the part of its window you can see.
+- Up to 10 windows: <kbd>1</kbd>–<kbd>9</kbd>, then <kbd>0</kbd>.
+- If you already know the number, <kbd>Caps Lock</kbd> + number works straight away, before the overlay appears.
 
 ## How it works
 
@@ -102,6 +115,8 @@ The menu bar icon also has:
 
 **The Hyper key** remaps Caps Lock to F18 at the keyboard-driver level using macOS's built-in `hidutil`. A keyboard event tap then turns F18 + key into ⌃⌥⇧⌘ + key, and a quick F18 tap into Escape. Quitting Snapback, or turning the setting off, gives Caps Lock back.
 
+**The window picker** reads on-screen window positions from the window server (no Screen Recording permission needed), numbers them by position, and draws a dimmed overlay on each display. Picking a window raises it through the Accessibility API and activates its app. If macOS doesn't bring it to the front, Snapback falls back to activating the app the way the Dock does.
+
 Layouts are stored in `~/Library/Application Support/Snapback/layouts.json`.
 
 ### Limitations
@@ -109,6 +124,7 @@ Layouts are stored in `~/Library/Application Support/Snapback/layouts.json`.
 - Windows on other Spaces, minimised windows and full-screen windows aren't moved. macOS has no supported way for an app to move windows between Spaces.
 - Some apps enforce a minimum window size or ignore resize requests.
 - While the Hyper key is on, Caps Lock no longer toggles capitals.
+- With the window picker on, <kbd>Caps Lock</kbd> + a number is used for switching windows, so it isn't passed to other apps as a Hyper shortcut.
 - Snapback replaces any custom `hidutil` key remaps you've set up yourself. The **Modifier Keys** setting in System Settings isn't affected.
 
 ## Troubleshooting
@@ -149,8 +165,10 @@ Either way, this stops Snapback, gives Caps Lock back, and removes the app and L
 Sources/
   Layout.swift        Layout model and geometry (pure, unit tested)
   HyperKey.swift      Hyper key state machine (pure, unit tested)
+  Picker.swift        Window picker numbering and badge placement (pure, unit tested)
+  Overlay.swift       Window picker overlay, on-screen window list, focusing
   System.swift        Displays, Accessibility window access, hotkeys, Caps Lock remap, event tap
-  main.swift          Menu bar app, save/restore, permission flow
+  main.swift          Menu bar app, save/restore, window picker, permission flow
 Tests/
   main.swift          Tests (plain Swift, no XCTest required)
 Resources/

@@ -163,6 +163,9 @@ final class KeyTap {
     let hyper = HyperKey()
     var enabled = true
     var onHyperKeyDown: ((UInt16) -> Bool)?
+    /// Called when Caps Lock goes down (not on auto-repeat) and when it's released.
+    var onTriggerDown: (() -> Void)?
+    var onTriggerUp: (() -> Void)?
 
     private var port: CFMachPort?
     private var consumedKeys = Set<UInt16>()
@@ -196,7 +199,12 @@ final class KeyTap {
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         let isDown = type == .keyDown
 
+        let wasHeld = hyper.isHeld
         let result = hyper.handle(keyCode: keyCode, isDown: isDown, time: ProcessInfo.processInfo.systemUptime)
+        if keyCode == HyperKey.triggerKeyCode {
+            if isDown, !wasHeld { onTriggerDown?() }
+            if !isDown { onTriggerUp?() }
+        }
 
         // Key-up of a shortcut we handled ourselves.
         if !isDown, consumedKeys.remove(keyCode) != nil { return nil }

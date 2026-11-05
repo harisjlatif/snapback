@@ -4,6 +4,8 @@
 //   ⌃⌥⌘R or Hyper+R  restore it
 //
 // Hyper = hold Caps Lock (acts as ⌃⌥⇧⌘). Tapping Caps Lock alone types Escape.
+// Holding Caps Lock on its own shows numbered badges on every window; press a
+// number to focus that window.
 
 import AppKit
 import Carbon
@@ -21,12 +23,15 @@ final class Snapback: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private enum Pref {
         static let hyperKey = "hyperKeyEnabled"
         static let tapEscape = "capsLockTapEscape"
+        static let picker = "windowPickerEnabled"
     }
+    private let picker = PickerOverlay()
+    private var pickerDelay: DispatchWorkItem?
     private let defaults = UserDefaults.standard
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         load()
-        defaults.register(defaults: [Pref.hyperKey: true, Pref.tapEscape: true])
+        defaults.register(defaults: [Pref.hyperKey: true, Pref.tapEscape: true, Pref.picker: true])
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "Snapback")
@@ -38,12 +43,25 @@ final class Snapback: NSObject, NSApplicationDelegate, NSMenuDelegate {
         HotKeys.register(id: 1, keyCode: kVK_ANSI_S, modifiers: mods) { [weak self] in self?.save() }
         HotKeys.register(id: 2, keyCode: kVK_ANSI_R, modifiers: mods) { [weak self] in self?.restore() }
 
+        // Runs inside the event tap callback, so UI work is dispatched to the main queue.
         KeyTap.shared.onHyperKeyDown = { [weak self] keyCode in
+            guard let self else { return false }
+            if self.defaults.bool(forKey: Pref.picker), let index = Picker.labelIndex(forKeyCode: keyCode) {
+                DispatchQueue.main.async { self.pickerDelay?.cancel(); self.picker.pick(index) }
+                return true
+            }
+            DispatchQueue.main.async { self.pickerDelay?.cancel(); self.picker.hide() }
             switch Int(keyCode) {
-            case kVK_ANSI_S: DispatchQueue.main.async { self?.save() }; return true
-            case kVK_ANSI_R: DispatchQueue.main.async { self?.restore() }; return true
+            case kVK_ANSI_S: DispatchQueue.main.async { self.save() }; return true
+            case kVK_ANSI_R: DispatchQueue.main.async { self.restore() }; return true
             default: return false
             }
+        }
+        KeyTap.shared.onTriggerDown = { [weak self] in
+            DispatchQueue.main.async { self?.scheduleWindowPicker() }
+        }
+        KeyTap.shared.onTriggerUp = { [weak self] in
+            DispatchQueue.main.async { self?.pickerDelay?.cancel(); self?.picker.hide() }
         }
         applyHyperSettings()
         // Remaps are cleared on sleep/wake on some Macs; re-apply.
@@ -72,6 +90,25 @@ final class Snapback: NSObject, NSApplicationDelegate, NSMenuDelegate {
             tap.enabled = false
             CapsLockRemap.disable()
         }
+    }
+
+    /// Shows the window picker if Caps Lock is still held on its own after a short delay,
+    /// so quick taps (Escape) and Caps Lock shortcuts don't flash the overlay.
+    private func scheduleWindowPicker() {
+        pickerDelay?.cancel()
+        guard defaults.bool(forKey: Pref.picker) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            let hyper = KeyTap.shared.hyper
+            guard let self, hyper.isHeld, !hyper.wasUsed else { return }
+            hyper.suppressTap()  // releasing Caps Lock now shouldn't also type Escape
+            self.picker.show()
+        }
+        pickerDelay = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    @objc private func togglePicker() {
+        defaults.set(!defaults.bool(forKey: Pref.picker), forKey: Pref.picker)
     }
 
     @objc private func toggleHyperKey() {
@@ -147,7 +184,8 @@ final class Snapback: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Press Caps Lock + R (or ⌃⌥⌘R) any time to snap back to it.
 
             Caps Lock is now a Hyper key: hold it with any key for ⌃⌥⇧⌘, \
-            or tap it on its own for Escape. You can turn this off in the Snapback menu.
+            or tap it on its own for Escape. Hold it on its own to number your windows, \
+            then press a number to switch to that window. You can turn these off in the Snapback menu.
             """
         alert.addButton(withTitle: "Got It")
         alert.runModal()
@@ -185,6 +223,10 @@ final class Snapback: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: hyperOn ? #selector(toggleTapEscape) : nil, keyEquivalent: "")
         escape.state = defaults.bool(forKey: Pref.tapEscape) ? .on : .off
         escape.indentationLevel = 1
+        let pick = menu.addItem(withTitle: "Hold Caps Lock to Pick a Window",
+                                action: hyperOn ? #selector(togglePicker) : nil, keyEquivalent: "")
+        pick.state = defaults.bool(forKey: Pref.picker) ? .on : .off
+        pick.indentationLevel = 1
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Snapback", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         for item in menu.items where item.action != #selector(NSApplication.terminate(_:)) { item.target = self }
